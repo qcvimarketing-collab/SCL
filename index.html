@@ -14,6 +14,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
+  <!-- jsPDF for client-side PDF generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
   <script>
     tailwind.config = {
       theme: {
@@ -1049,6 +1052,53 @@
   <a href="#application" class="flex-1 btn-primary py-3 rounded-md text-[12px] font-medium text-center">Apply Now</a>
 </div>
 
+<!-- ============== SIGNATURE MODAL ============== -->
+<div id="signature-modal" class="hidden fixed inset-0 z-[110] items-center justify-center p-4" style="background:rgba(14,42,71,0.7);backdrop-filter:blur(8px);">
+  <div class="bg-ivory-warm rounded-md max-w-xl w-full overflow-hidden shadow-2xl fade-in">
+    <div class="px-7 py-5 border-b border-navy/10 bg-white">
+      <div class="text-[10px] uppercase tracking-[0.25em] text-gold font-semibold mb-1">Electronic Signature</div>
+      <h3 class="font-display text-2xl text-navy font-medium leading-tight">Sign Your Application</h3>
+      <p class="text-[12px] text-navy/60 mt-1.5">Sign once below — your signature will be applied to each page of the PDF.</p>
+    </div>
+    <div class="p-7">
+      <!-- Signer name -->
+      <div class="field mb-4">
+        <input type="text" id="signer-name" placeholder=" " />
+        <label for="signer-name">Printed Name</label>
+      </div>
+
+      <!-- Signature pad -->
+      <div class="relative">
+        <div class="absolute top-2 right-2 z-10 text-[10px] uppercase tracking-[0.15em] text-navy/40 font-medium">Sign here</div>
+        <canvas id="signature-pad" class="w-full bg-white border border-navy/15 rounded-md" style="height:180px; touch-action:none; cursor:crosshair;"></canvas>
+        <div class="absolute bottom-3 left-4 right-4 border-b border-navy/30 pointer-events-none" style="border-bottom-style:dashed;"></div>
+        <div class="absolute bottom-1 left-4 text-[9px] uppercase tracking-[0.18em] text-navy/35 font-medium pointer-events-none">× Authorized Signature</div>
+      </div>
+
+      <div class="flex justify-between items-center mt-3">
+        <button type="button" id="sig-clear" class="text-[12px] text-navy/65 hover:text-gold transition-colors flex items-center gap-1.5 font-medium">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+          Clear
+        </button>
+        <div class="text-[11px] text-navy/50">Date: <span id="sig-date" class="text-navy/75 font-medium">—</span></div>
+      </div>
+
+      <!-- Disclosure -->
+      <div class="mt-5 bg-forest/5 border border-forest/15 rounded-md px-4 py-3 text-[11px] text-navy/70 leading-relaxed">
+        <span class="font-medium text-navy">E-Sign Consent:</span> By signing electronically, I confirm that this signature has the same legal effect as a handwritten signature.
+      </div>
+
+      <div class="flex flex-col sm:flex-row gap-2.5 mt-6">
+        <button type="button" id="sig-cancel" class="flex-1 btn-outline py-3 rounded-md text-sm font-medium">Cancel</button>
+        <button type="button" id="sig-confirm" class="flex-1 btn-primary py-3 rounded-md text-sm font-medium inline-flex items-center justify-center gap-2">
+          <span class="sig-confirm-label">Sign & Generate PDF</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ============== SUCCESS MODAL ============== -->
 <div id="success-modal" class="hidden fixed inset-0 z-[100] items-center justify-center p-4" style="background:rgba(14,42,71,0.65);backdrop-filter:blur(8px);">
   <div class="bg-ivory-warm rounded-md max-w-lg w-full overflow-hidden shadow-2xl fade-in">
@@ -1070,8 +1120,12 @@
         <div class="font-display text-xl text-navy font-medium" id="ref-number">—</div>
       </div>
       <div class="flex flex-col gap-2.5">
-        <a href="#contact" id="close-success" class="btn-primary py-3 rounded-md text-sm font-medium text-center">Schedule Consultation</a>
-        <button type="button" id="close-success-2" class="btn-outline py-3 rounded-md text-sm font-medium">Close</button>
+        <button type="button" id="download-pdf-btn" class="btn-primary py-3 rounded-md text-sm font-medium text-center inline-flex items-center justify-center gap-2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download Signed Application
+        </button>
+        <a href="#contact" id="close-success" class="btn-outline py-3 rounded-md text-sm font-medium text-center">Schedule Consultation</a>
+        <button type="button" id="close-success-2" class="text-[12px] text-navy/55 hover:text-navy py-2">Close</button>
       </div>
     </div>
   </div>
@@ -1638,8 +1692,531 @@ if (ssnEl) {
 }
 
 /* =========================================================
-   INIT
+   SIGNATURE PAD
    ========================================================= */
+const sigCanvas = document.getElementById('signature-pad');
+const sigCtx = sigCanvas.getContext('2d');
+let sigDrawing = false;
+let sigHasContent = false;
+let sigLastX = 0, sigLastY = 0;
+
+function resizeSignaturePad() {
+  // Keep ratio crisp on retina screens
+  const rect = sigCanvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  sigCanvas.width = rect.width * dpr;
+  sigCanvas.height = rect.height * dpr;
+  sigCtx.scale(dpr, dpr);
+  sigCtx.lineWidth = 2;
+  sigCtx.lineCap = 'round';
+  sigCtx.lineJoin = 'round';
+  sigCtx.strokeStyle = '#0E2A47';
+}
+
+function getSigPos(e) {
+  const rect = sigCanvas.getBoundingClientRect();
+  const point = e.touches ? e.touches[0] : e;
+  return {
+    x: point.clientX - rect.left,
+    y: point.clientY - rect.top
+  };
+}
+
+function sigStart(e) {
+  e.preventDefault();
+  sigDrawing = true;
+  const p = getSigPos(e);
+  sigLastX = p.x; sigLastY = p.y;
+  sigCtx.beginPath();
+  sigCtx.moveTo(p.x, p.y);
+}
+
+function sigMove(e) {
+  if (!sigDrawing) return;
+  e.preventDefault();
+  const p = getSigPos(e);
+  sigCtx.lineTo(p.x, p.y);
+  sigCtx.stroke();
+  sigLastX = p.x; sigLastY = p.y;
+  sigHasContent = true;
+}
+
+function sigEnd(e) {
+  if (sigDrawing) {
+    e.preventDefault?.();
+    sigDrawing = false;
+    sigCtx.closePath();
+  }
+}
+
+sigCanvas.addEventListener('mousedown', sigStart);
+sigCanvas.addEventListener('mousemove', sigMove);
+sigCanvas.addEventListener('mouseup', sigEnd);
+sigCanvas.addEventListener('mouseleave', sigEnd);
+sigCanvas.addEventListener('touchstart', sigStart, { passive: false });
+sigCanvas.addEventListener('touchmove', sigMove, { passive: false });
+sigCanvas.addEventListener('touchend', sigEnd);
+
+document.getElementById('sig-clear').addEventListener('click', () => {
+  sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+  sigHasContent = false;
+});
+
+function openSignatureModal() {
+  const modal = document.getElementById('signature-modal');
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+  document.body.style.overflow = 'hidden';
+
+  // Pre-fill signer name from owner name field
+  const signerInput = document.getElementById('signer-name');
+  if (!signerInput.value) {
+    signerInput.value = document.getElementById('ownerName')?.value || '';
+  }
+
+  // Date stamp
+  const today = new Date();
+  document.getElementById('sig-date').textContent = today.toLocaleDateString('en-US', {
+    year: 'numeric', month: 'long', day: 'numeric'
+  });
+
+  // Resize after the modal becomes visible
+  setTimeout(() => {
+    resizeSignaturePad();
+    sigHasContent = false;
+  }, 50);
+}
+
+function closeSignatureModal() {
+  const modal = document.getElementById('signature-modal');
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+  document.body.style.overflow = '';
+  sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+  sigHasContent = false;
+}
+
+document.getElementById('sig-cancel').addEventListener('click', closeSignatureModal);
+document.getElementById('signature-modal').addEventListener('click', e => {
+  if (e.target.id === 'signature-modal') closeSignatureModal();
+});
+
+document.getElementById('download-pdf-btn').addEventListener('click', openSignatureModal);
+
+document.getElementById('sig-confirm').addEventListener('click', () => {
+  const signerName = document.getElementById('signer-name').value.trim();
+  if (!signerName) {
+    showToast('Please enter your printed name.');
+    document.getElementById('signer-name').focus();
+    return;
+  }
+  if (!sigHasContent) {
+    showToast('Please provide your signature in the box above.');
+    return;
+  }
+
+  // Loading state
+  const confirmBtn = document.getElementById('sig-confirm');
+  const lbl = confirmBtn.querySelector('.sig-confirm-label');
+  const orig = lbl.textContent;
+  confirmBtn.disabled = true;
+  confirmBtn.classList.add('opacity-80','cursor-wait');
+  lbl.innerHTML = '<span class="inline-flex items-center gap-2"><span class="spinner"></span> Generating…</span>';
+
+  setTimeout(() => {
+    try {
+      const sigDataURL = sigCanvas.toDataURL('image/png');
+      generatePDF(sigDataURL, signerName);
+      lbl.textContent = orig;
+      confirmBtn.disabled = false;
+      confirmBtn.classList.remove('opacity-80','cursor-wait');
+      closeSignatureModal();
+      showToast('PDF downloaded successfully.');
+    } catch (err) {
+      console.error(err);
+      lbl.textContent = orig;
+      confirmBtn.disabled = false;
+      confirmBtn.classList.remove('opacity-80','cursor-wait');
+      showToast('PDF generation failed. Please try again.');
+    }
+  }, 600);
+});
+
+/* =========================================================
+   PDF GENERATION
+   ========================================================= */
+function generatePDF(signatureDataURL, signerName) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'letter' }); // 612 x 792
+
+  // ─── Brand palette
+  const NAVY  = [14, 42, 71];
+  const FOREST= [31, 77, 58];
+  const GOLD  = [184, 137, 62];
+  const INK   = [26, 26, 26];
+  const MUTED = [110, 120, 135];
+  const PAPER = [250, 246, 236];
+
+  const PAGE_W = 612, PAGE_H = 792;
+  const MARGIN_X = 50;
+  const refNumber = document.getElementById('ref-number').textContent || ('SCL-' + Date.now().toString(36).toUpperCase().slice(-8));
+  const today = new Date();
+  const dateStr = today.toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+
+  // ─── Helpers
+  const get = id => {
+    const el = document.getElementById(id);
+    if (!el) return '—';
+    if (el.type === 'checkbox') return el.checked ? 'Yes' : 'No';
+    return (el.value && el.value.toString().trim()) ? el.value : '—';
+  };
+  const fmtCurrency = id => {
+    const v = document.getElementById(id)?.value;
+    return v ? '$' + Number(v).toLocaleString('en-US') : '—';
+  };
+
+  let pageNum = 0;
+  const totalPages = 3;
+
+  function drawHeader() {
+    pageNum++;
+
+    // Top brand bar
+    doc.setFillColor(...NAVY);
+    doc.rect(0, 0, PAGE_W, 70, 'F');
+
+    // Gold underline
+    doc.setFillColor(...GOLD);
+    doc.rect(0, 70, PAGE_W, 1.5, 'F');
+
+    // Crest mark (small square)
+    doc.setDrawColor(...GOLD);
+    doc.setLineWidth(0.6);
+    doc.rect(MARGIN_X, 24, 22, 22);
+    doc.setFont('times', 'italic');
+    doc.setFontSize(11);
+    doc.setTextColor(...GOLD);
+    doc.text('SC', MARGIN_X + 11, 39, { align: 'center' });
+
+    // Brand name
+    doc.setFont('times', 'normal');
+    doc.setFontSize(15);
+    doc.setTextColor(244, 239, 227);
+    doc.text('Superb Choice Lending', MARGIN_X + 32, 35);
+
+    // Tagline
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(212, 168, 92);
+    doc.text('COMMERCIAL CAPITAL  ·  BOCA RATON, FLORIDA', MARGIN_X + 32, 47, { charSpace: 1.2 });
+
+    // Right side — doc label
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(212, 168, 92);
+    doc.text('COMMERCIAL LOAN APPLICATION', PAGE_W - MARGIN_X, 30, { align: 'right', charSpace: 1.2 });
+    doc.setFont('times', 'normal');
+    doc.setFontSize(11);
+    doc.setTextColor(244, 239, 227);
+    doc.text(`Ref. ${refNumber}`, PAGE_W - MARGIN_X, 47, { align: 'right' });
+  }
+
+  function drawFooter() {
+    // Gold line above footer
+    const footerY = PAGE_H - 110;
+    doc.setDrawColor(...GOLD);
+    doc.setLineWidth(0.5);
+    doc.line(MARGIN_X, footerY, PAGE_W - MARGIN_X, footerY);
+
+    // Signature block
+    const sigY = footerY + 16;
+    const sigW = 220;
+
+    // Left — signature image
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(...MUTED);
+    doc.text('AUTHORIZED SIGNATURE', MARGIN_X, sigY, { charSpace: 1 });
+
+    if (signatureDataURL) {
+      try {
+        doc.addImage(signatureDataURL, 'PNG', MARGIN_X, sigY + 6, sigW, 42);
+      } catch(e) {}
+    }
+    // signature line
+    doc.setDrawColor(...NAVY);
+    doc.setLineWidth(0.6);
+    doc.line(MARGIN_X, sigY + 52, MARGIN_X + sigW, sigY + 52);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...INK);
+    doc.text(signerName, MARGIN_X, sigY + 64);
+    doc.setFontSize(7);
+    doc.setTextColor(...MUTED);
+    doc.text('Printed Name', MARGIN_X, sigY + 73);
+
+    // Right — date
+    const dateX = PAGE_W - MARGIN_X - 130;
+    doc.setFontSize(7);
+    doc.setTextColor(...MUTED);
+    doc.text('DATE', dateX, sigY, { charSpace: 1 });
+    doc.setDrawColor(...NAVY);
+    doc.line(dateX, sigY + 52, dateX + 130, sigY + 52);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...INK);
+    doc.text(dateStr, dateX, sigY + 47);
+
+    // Page number footer
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(...MUTED);
+    doc.text(`Page ${pageNum} of ${totalPages}`, PAGE_W / 2, PAGE_H - 14, { align: 'center', charSpace: 1 });
+    doc.text('CONFIDENTIAL — FOR UNDERWRITING REVIEW', MARGIN_X, PAGE_H - 14, { charSpace: 1 });
+    doc.text('superbchoicelending.com', PAGE_W - MARGIN_X, PAGE_H - 14, { align: 'right', charSpace: 1 });
+  }
+
+  function sectionTitle(y, eyebrow, title) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(...GOLD);
+    doc.text(eyebrow.toUpperCase(), MARGIN_X, y, { charSpace: 1.5 });
+
+    doc.setFont('times', 'normal');
+    doc.setFontSize(18);
+    doc.setTextColor(...NAVY);
+    doc.text(title, MARGIN_X, y + 20);
+
+    // Short gold rule
+    doc.setDrawColor(...GOLD);
+    doc.setLineWidth(0.6);
+    doc.line(MARGIN_X, y + 28, MARGIN_X + 40, y + 28);
+
+    return y + 46;
+  }
+
+  function row(y, label, value) {
+    // Two-column row
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(...MUTED);
+    doc.text(label.toUpperCase(), MARGIN_X, y, { charSpace: 1 });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(...INK);
+    const text = String(value || '—');
+    const maxWidth = PAGE_W - MARGIN_X * 2 - 200;
+    const lines = doc.splitTextToSize(text, maxWidth);
+    doc.text(lines, MARGIN_X + 200, y);
+
+    // Hairline
+    doc.setDrawColor(225, 220, 205);
+    doc.setLineWidth(0.3);
+    doc.line(MARGIN_X, y + 8, PAGE_W - MARGIN_X, y + 8);
+
+    return y + Math.max(20, 12 + (lines.length - 1) * 11);
+  }
+
+  function paragraph(y, text, size = 9, color = INK) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(size);
+    doc.setTextColor(...color);
+    const lines = doc.splitTextToSize(text, PAGE_W - MARGIN_X * 2);
+    doc.text(lines, MARGIN_X, y);
+    return y + lines.length * (size + 3);
+  }
+
+  // ─────────────────────────────────────────
+  // PAGE 1 — Application Summary
+  // ─────────────────────────────────────────
+  drawHeader();
+
+  let y = 110;
+
+  // Page title
+  doc.setFont('times', 'normal');
+  doc.setFontSize(24);
+  doc.setTextColor(...NAVY);
+  doc.text('Application Summary', MARGIN_X, y);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...MUTED);
+  doc.text(`Submitted ${dateStr}  ·  Reference ${refNumber}`, MARGIN_X, y + 16);
+
+  // Decorative gold line
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.8);
+  doc.line(MARGIN_X, y + 24, PAGE_W - MARGIN_X, y + 24);
+
+  y = y + 50;
+  y = sectionTitle(y, 'Section I', 'Selected Program');
+  y = row(y, 'Loan Program', activeProduct?.name || '—');
+  y = row(y, 'Category', activeProduct?.sub || '—');
+
+  y += 20;
+  y = sectionTitle(y, 'Section II', 'Business Information');
+  y = row(y, 'Legal Name', get('legalName'));
+  y = row(y, 'DBA Name', get('dbaName'));
+  y = row(y, 'EIN', get('ein'));
+  y = row(y, 'Entity Type', get('entityType'));
+  y = row(y, 'Industry', get('industry'));
+  y = row(y, 'Years in Business', get('yearsInBusiness'));
+  y = row(y, 'Monthly Revenue', fmtCurrency('monthlyRevenue'));
+  y = row(y, 'Annual Revenue', fmtCurrency('annualRevenue'));
+  y = row(y, 'Employees', get('numEmployees'));
+  y = row(y, 'Address', get('businessAddress'));
+  y = row(y, 'Website', get('website'));
+
+  drawFooter();
+
+  // ─────────────────────────────────────────
+  // PAGE 2 — Owner, Financial, Loan Request
+  // ─────────────────────────────────────────
+  doc.addPage();
+  drawHeader();
+  y = 110;
+
+  y = sectionTitle(y, 'Section III', 'Owner Information');
+  y = row(y, 'Full Name', get('ownerName'));
+  y = row(y, 'Ownership %', get('ownership') + '%');
+  y = row(y, 'Mobile', get('mobile'));
+  y = row(y, 'Email', get('email'));
+  y = row(y, 'Date of Birth', get('dob'));
+  // SSN — masked for security
+  const ssnRaw = document.getElementById('ssn')?.value || '';
+  const ssnMasked = ssnRaw ? 'XXX-XX-' + ssnRaw.slice(-4) : '—';
+  y = row(y, 'SSN (masked)', ssnMasked);
+  y = row(y, 'Credit Score Range', get('creditScore'));
+  y = row(y, 'Bankruptcy History', get('bankruptcy'));
+  y = row(y, 'Tax Liens', get('taxLiens'));
+
+  y += 16;
+  y = sectionTitle(y, 'Section IV', 'Financial Snapshot');
+  y = row(y, 'Avg. Monthly Deposits', fmtCurrency('avgDeposits'));
+  y = row(y, 'Primary Bank', get('bankName'));
+  y = row(y, 'Existing Loans', get('existingLoans'));
+  y = row(y, 'Cash Reserves', fmtCurrency('cashReserves'));
+  y = row(y, 'Net Profit (LY)', fmtCurrency('netProfit'));
+  y = row(y, 'Revenue (LY)', fmtCurrency('revenueLastYear'));
+
+  y += 16;
+  y = sectionTitle(y, 'Section V', 'Loan Request');
+  y = row(y, 'Loan Amount', fmtCurrency('loanAmount'));
+  y = row(y, 'Funding Timeline', get('timeline'));
+  y = row(y, 'Use of Funds', get('useOfFunds'));
+  if (get('notes') !== '—') {
+    y = row(y, 'Additional Notes', get('notes'));
+  }
+
+  // Program-specific
+  if (activeProduct && activeProduct.fields.length) {
+    y += 8;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(...GOLD);
+    doc.text('PROGRAM-SPECIFIC DETAILS', MARGIN_X, y, { charSpace: 1.5 });
+    y += 12;
+    activeProduct.fields.forEach(f => {
+      let val = get('cond-' + f.id);
+      if (f.type === 'number' && val !== '—') val = '$' + Number(val).toLocaleString('en-US');
+      y = row(y, f.label, val);
+    });
+  }
+
+  drawFooter();
+
+  // ─────────────────────────────────────────
+  // PAGE 3 — Authorizations & Signature
+  // ─────────────────────────────────────────
+  doc.addPage();
+  drawHeader();
+  y = 110;
+
+  y = sectionTitle(y, 'Section VI', 'Authorizations & Disclosures');
+
+  // Disclosure body
+  y += 4;
+  y = paragraph(y, 'By signing this application, the undersigned (collectively, the "Applicant") hereby applies to Superb Choice Lending and its lending partners (collectively, the "Lender") for commercial financing under the program selected herein.', 9);
+  y += 6;
+  y = paragraph(y, 'The Applicant authorizes the Lender to verify the information provided in this application and to obtain consumer and business credit reports from any consumer or commercial credit reporting agency as part of the underwriting review.', 9);
+  y += 6;
+  y = paragraph(y, 'Submission of this application does not constitute a commitment to lend. Final terms, rates, and structures are determined upon completion of underwriting. Superb Choice Lending operates as a commercial finance brokerage and is not a direct lender in all jurisdictions.', 9);
+
+  y += 14;
+  // Authorizations table
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(...GOLD);
+  doc.text('ELECTRONIC AUTHORIZATIONS', MARGIN_X, y, { charSpace: 1.5 });
+  y += 14;
+
+  function authRow(y, checked, label, body) {
+    // Checkbox
+    doc.setDrawColor(...NAVY);
+    doc.setLineWidth(0.7);
+    doc.rect(MARGIN_X, y - 8, 9, 9);
+    if (checked) {
+      doc.setFillColor(...FOREST);
+      doc.rect(MARGIN_X, y - 8, 9, 9, 'F');
+      // checkmark
+      doc.setDrawColor(244, 239, 227);
+      doc.setLineWidth(1.2);
+      doc.line(MARGIN_X + 1.5, y - 4, MARGIN_X + 3.5, y - 1.5);
+      doc.line(MARGIN_X + 3.5, y - 1.5, MARGIN_X + 7.5, y - 6);
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...NAVY);
+    doc.text(label, MARGIN_X + 16, y);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...INK);
+    const lines = doc.splitTextToSize(body, PAGE_W - MARGIN_X * 2 - 16);
+    doc.text(lines, MARGIN_X + 16, y + 11);
+
+    return y + 11 + lines.length * 11 + 6;
+  }
+
+  y = authRow(y, document.getElementById('consent-soft')?.checked,
+    'Soft Credit Authorization',
+    'Applicant authorizes a soft credit pull, which will not impact credit score, for initial pre-qualification.');
+  y = authRow(y, document.getElementById('consent-hard')?.checked,
+    'Hard Credit Authorization',
+    'Upon receipt of an acceptable term sheet, Applicant authorizes a hard credit pull to finalize underwriting.');
+  y = authRow(y, document.getElementById('consent-terms')?.checked,
+    'Terms & Privacy Agreement',
+    'Applicant has read and agrees to the Terms of Service and Privacy Policy of Superb Choice Lending.');
+  y = authRow(y, document.getElementById('consent-sign')?.checked,
+    'E-Signature Consent',
+    'Applicant confirms electronic signature has the same legal effect as a handwritten signature, and information provided is true and complete.');
+
+  y += 8;
+  // Encryption note
+  doc.setFillColor(...PAPER);
+  doc.rect(MARGIN_X, y, PAGE_W - MARGIN_X * 2, 28, 'F');
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.4);
+  doc.rect(MARGIN_X, y, PAGE_W - MARGIN_X * 2, 28);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...NAVY);
+  doc.text('This application is transmitted under 256-bit TLS encryption. All information remains', MARGIN_X + 10, y + 12);
+  doc.text('confidential and is reviewed solely by Superb Choice Lending and its underwriting partners.', MARGIN_X + 10, y + 22);
+
+  drawFooter();
+
+  // ─────────────────────────────────────────
+  // Save
+  // ─────────────────────────────────────────
+  const filename = `SCL-Application-${refNumber}.pdf`;
+  doc.save(filename);
+}
+
+
 renderProductCards();
 renderStepRail();
 renderDocs();
