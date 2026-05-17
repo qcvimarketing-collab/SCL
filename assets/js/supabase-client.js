@@ -9,8 +9,8 @@ const SCL_CONFIG = {
   // Replace with your Supabase project URL + anon key.
   // Found in Supabase dashboard → Project Settings → API.
   // It's safe to expose the anon key — RLS policies enforce security.
-  SUPABASE_URL:      'https://YOUR_PROJECT.supabase.co',
-  SUPABASE_ANON_KEY: 'YOUR_ANON_KEY_HERE',
+  SUPABASE_URL:      'https://xnfcqinkmucedmrlrylj.supabase.co',
+  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhuZmNxaW5rbXVjZWRtcmxyeWxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwMzgwNTAsImV4cCI6MjA5NDYxNDA1MH0.A-kksNRHF1iuc2_8-jtIgNhL-UAie2GhAjcsED5KF9A',
 };
 
 const SCLBackend = (function() {
