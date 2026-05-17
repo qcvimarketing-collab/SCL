@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /admin.html
+Disallow: /api/
+
+# Sitemap
+Sitemap: https://superbchoicelending.com/sitemap.xml
+
+# Crawl delay
+Crawl-delay: 1
